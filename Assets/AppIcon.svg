@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="background" x1="128" y1="86" x2="892" y2="952" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#292936"/>
+      <stop offset="1" stop-color="#15151C"/>
+    </linearGradient>
+    <linearGradient id="daily" x1="372" y1="204" x2="822" y2="618" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFB8BD" stop-opacity=".45"/>
+      <stop offset=".55" stop-color="#FF7985"/>
+      <stop offset="1" stop-color="#FF4B5B"/>
+    </linearGradient>
+  </defs>
+  <rect x="48" y="48" width="928" height="928" rx="210" fill="url(#background)"/>
+  <rect x="56" y="56" width="912" height="912" rx="202" fill="none" stroke="#FFFFFF" stroke-opacity=".08" stroke-width="9"/>
+  <circle cx="512" cy="512" r="294" fill="none" stroke="#555560" stroke-width="94"/>
+  <circle cx="512" cy="512" r="294" fill="none" stroke="#F5F5F7" stroke-width="94" stroke-linecap="round" stroke-dasharray="1108 1848" transform="rotate(-90 512 512)"/>
+  <circle cx="512" cy="512" r="294" fill="none" stroke="url(#daily)" stroke-width="94" stroke-linecap="round" stroke-dasharray="450 1848" transform="rotate(-90 512 512)"/>
+</svg>
