@@ -2,7 +2,7 @@
 set -euo pipefail
 
 project_dir="${0:A:h:h}"
-app_name='ChatGPT 订阅额度监控'
+app_name='ChatGPT 订阅额度监控 V2'
 app_path="$project_dir/build/$app_name.app"
 temporary_dir="$(mktemp -d)"
 iconset_dir="$temporary_dir/AppIcon.iconset"

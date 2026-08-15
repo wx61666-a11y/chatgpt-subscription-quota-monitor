@@ -11,43 +11,53 @@ struct SubscriptionSnapshot: Equatable, Sendable {
 
     var weeklyProgress: Double? { usedPercent.map { $0 / 100 } }
 
-    var workingDayNumber: Int? {
+    func allocation(for selectedWeekdays: Set<Int>, now: Date = Date()) -> QuotaAllocation? {
         guard let resetsAt else { return nil }
+        guard !selectedWeekdays.isEmpty else { return nil }
         let calendar = Calendar.current
         let firstDate = calendar.startOfDay(for: resetsAt.addingTimeInterval(-7 * 24 * 60 * 60))
-        let currentDate = calendar.startOfDay(for: Date())
-        guard firstDate <= currentDate else { return 0 }
+        let currentDate = calendar.startOfDay(for: now)
+        guard firstDate <= currentDate else {
+            return QuotaAllocation(
+                selectedWeekdays: selectedWeekdays,
+                elapsedSelectedDays: 0,
+                isTodaySelected: selectedWeekdays.contains(Self.mondayFirstWeekdayIndex(for: now, calendar: calendar))
+            )
+        }
 
         var count = 0
         var date = firstDate
         while date <= currentDate {
-            if calendar.component(.weekday, from: date) != 1 { count += 1 }
+            if selectedWeekdays.contains(Self.mondayFirstWeekdayIndex(for: date, calendar: calendar)) {
+                count += 1
+            }
             guard let next = calendar.date(byAdding: .day, value: 1, to: date) else { break }
             date = next
         }
-        return min(6, count)
+        return QuotaAllocation(
+            selectedWeekdays: selectedWeekdays,
+            elapsedSelectedDays: min(selectedWeekdays.count, count),
+            isTodaySelected: selectedWeekdays.contains(Self.mondayFirstWeekdayIndex(for: now, calendar: calendar))
+        )
     }
 
-    var allowedPercent: Double? {
-        workingDayNumber.map { Double($0) * 100 / 6 }
-    }
-
-    var paceState: PaceState {
-        guard let allowedPercent, let usedPercent else { return .unavailable }
-        let workdayShare = 100.0 / 6.0
-        if usedPercent <= allowedPercent { return .white }
-        if usedPercent <= allowedPercent + workdayShare { return .red }
+    func paceState(for selectedWeekdays: Set<Int>) -> PaceState {
+        guard let allocation = allocation(for: selectedWeekdays), let usedPercent else { return .unavailable }
+        if usedPercent <= allocation.allowedPercent { return .white }
+        if usedPercent <= allocation.allowedPercent + allocation.dailyPercent { return .red }
         return .purple
     }
 
-    // Today's actual increase in the 7-day quota, expressed against one of
-    // six equal workday allocations.
-    var dailyAllocationProgress: Double? {
-        todayQuotaUsedPercent.map { $0 / (100.0 / 6.0) }
+    // Today's actual increase in the 7-day quota, expressed against the
+    // selected schedule's equal daily allocation.
+    func dailyAllocationProgress(for selectedWeekdays: Set<Int>) -> Double? {
+        guard let allocation = allocation(for: selectedWeekdays), allocation.isTodaySelected,
+              let todayQuotaUsedPercent else { return nil }
+        return todayQuotaUsedPercent / allocation.dailyPercent
     }
 
-    var dailyPaceState: PaceState {
-        guard let dailyAllocationProgress else { return .unavailable }
+    func dailyPaceState(for selectedWeekdays: Set<Int>) -> PaceState {
+        guard let dailyAllocationProgress = dailyAllocationProgress(for: selectedWeekdays) else { return .unavailable }
         if dailyAllocationProgress <= 1 { return .white }
         if dailyAllocationProgress <= 2 { return .red }
         return .purple
@@ -55,11 +65,24 @@ struct SubscriptionSnapshot: Equatable, Sendable {
 
     // The daily overlay repeats inside its active 100% color band. For example,
     // 120% of a daily allocation is shown as a 20% run in the red band.
-    var dailyCycleProgress: Double? {
-        guard let dailyAllocationProgress else { return nil }
+    func dailyCycleProgress(for selectedWeekdays: Set<Int>) -> Double? {
+        guard let dailyAllocationProgress = dailyAllocationProgress(for: selectedWeekdays) else { return nil }
         let remainder = dailyAllocationProgress.truncatingRemainder(dividingBy: 1)
         return remainder == 0 && dailyAllocationProgress > 0 ? 1 : remainder
     }
+
+    private static func mondayFirstWeekdayIndex(for date: Date, calendar: Calendar) -> Int {
+        (calendar.component(.weekday, from: date) + 5) % 7
+    }
+}
+
+struct QuotaAllocation: Equatable, Sendable {
+    let selectedWeekdays: Set<Int>
+    let elapsedSelectedDays: Int
+    let isTodaySelected: Bool
+
+    var dailyPercent: Double { 100 / Double(selectedWeekdays.count) }
+    var allowedPercent: Double { Double(elapsedSelectedDays) * dailyPercent }
 }
 
 struct DailySubscriptionUsage: Identifiable, Equatable, Sendable {
@@ -129,11 +152,14 @@ enum PaceState: Equatable {
 final class SubscriptionMonitor: ObservableObject {
     @Published private(set) var snapshot = SubscriptionSnapshot(usedPercent: nil, resetsAt: nil, recentUsage: [], todayQuotaUsedPercent: nil)
     @Published private(set) var refreshedAt = Date.distantPast
+    @Published private(set) var selectedWeekdays: Set<Int>
 
     private var refreshTimer: Timer?
     private var isRefreshing = false
+    private static let selectedWeekdaysKey = "CodexQuotaMeterV2.selectedWeekdays"
 
     init() {
+        selectedWeekdays = Self.loadSelectedWeekdays()
         refresh()
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
@@ -141,6 +167,26 @@ final class SubscriptionMonitor: ObservableObject {
     }
 
     deinit { refreshTimer?.invalidate() }
+
+    func toggleWeekday(_ weekdayIndex: Int) {
+        guard (0..<7).contains(weekdayIndex) else { return }
+        if selectedWeekdays.contains(weekdayIndex) {
+            guard selectedWeekdays.count > 1 else { return }
+            selectedWeekdays.remove(weekdayIndex)
+        } else {
+            selectedWeekdays.insert(weekdayIndex)
+        }
+        let serialized = selectedWeekdays.sorted().map(String.init).joined(separator: ",")
+        UserDefaults.standard.set(serialized, forKey: Self.selectedWeekdaysKey)
+    }
+
+    private static func loadSelectedWeekdays() -> Set<Int> {
+        let saved = UserDefaults.standard.string(forKey: selectedWeekdaysKey)
+        let decoded = Set((saved ?? "").split(separator: ",").compactMap { Int($0) }.filter { (0..<7).contains($0) })
+        // Preserve the original Monday–Saturday pacing until the user selects
+        // a different schedule in V2.
+        return decoded.isEmpty ? Set(0..<6) : decoded
+    }
 
     func refresh() {
         guard !isRefreshing else { return }
@@ -565,12 +611,14 @@ struct MenuSingleRing: View {
 
 struct MenuBarLabel: View {
     let snapshot: SubscriptionSnapshot
+    let selectedWeekdays: Set<Int>
+
     var body: some View {
         MenuSingleRing(
             weeklyProgress: snapshot.weeklyProgress,
-            dailyCycleProgress: snapshot.dailyCycleProgress,
-            dailyArcStartColor: snapshot.dailyPaceState.dailyArcStartColor,
-            dailyArcEndColor: snapshot.dailyPaceState.dailyArcEndColor
+            dailyCycleProgress: snapshot.dailyCycleProgress(for: selectedWeekdays),
+            dailyArcStartColor: snapshot.dailyPaceState(for: selectedWeekdays).dailyArcStartColor,
+            dailyArcEndColor: snapshot.dailyPaceState(for: selectedWeekdays).dailyArcEndColor
         )
         .accessibilityLabel("Codex 7天订阅额度与今日用量")
     }
@@ -592,7 +640,7 @@ final class StatusBarController: NSObject {
         button.target = self
         button.action = #selector(togglePopover(_:))
 
-        let view = NSHostingView(rootView: MenuBarLabel(snapshot: monitor.snapshot))
+        let view = NSHostingView(rootView: MenuBarLabel(snapshot: monitor.snapshot, selectedWeekdays: monitor.selectedWeekdays))
         view.frame = NSRect(x: 4, y: 1, width: 20, height: 20)
         view.autoresizingMask = [.width, .height]
         let click = NSClickGestureRecognizer(target: self, action: #selector(togglePopover(_:)))
@@ -605,10 +653,10 @@ final class StatusBarController: NSObject {
 
         iconView = view
         statusItem = item
-        snapshotSubscription = monitor.$snapshot
+        snapshotSubscription = monitor.$snapshot.combineLatest(monitor.$selectedWeekdays)
             .receive(on: RunLoop.main)
-            .sink { [weak self] snapshot in
-                self?.iconView?.rootView = MenuBarLabel(snapshot: snapshot)
+            .sink { [weak self] snapshot, selectedWeekdays in
+                self?.iconView?.rootView = MenuBarLabel(snapshot: snapshot, selectedWeekdays: selectedWeekdays)
             }
     }
 
@@ -775,6 +823,60 @@ struct UsageHeatmap: View {
     }
 }
 
+struct WeekdayQuotaSelector: View {
+    let selectedWeekdays: Set<Int>
+    let toggleWeekday: (Int) -> Void
+
+    private let weekdayNames = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+
+    private var dailyPercent: Double { 100 / Double(selectedWeekdays.count) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("额度分配")
+                    .font(.subheadline.weight(.bold))
+                Spacer()
+                Text("已选 \(selectedWeekdays.count) 天 · 每天 \(PercentFormatter.oneDecimal(dailyPercent))")
+                    .font(.caption.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 4) {
+                ForEach(weekdayNames.indices, id: \.self) { index in
+                    let isSelected = selectedWeekdays.contains(index)
+                    Button {
+                        toggleWeekday(index)
+                    } label: {
+                        Text(weekdayNames[index])
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .frame(maxWidth: .infinity, minHeight: 30)
+                            .foregroundStyle(isSelected ? Color.black.opacity(0.84) : Color.secondary)
+                            .background {
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(isSelected ? Color.green.opacity(0.88) : Color.primary.opacity(0.075))
+                            }
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .stroke(isSelected ? Color.green.opacity(0.96) : Color.primary.opacity(0.12), lineWidth: 1)
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .help(isSelected && selectedWeekdays.count == 1 ? "至少保留一天" : "点击\(isSelected ? "取消" : "选中")\(weekdayNames[index])")
+                    .accessibilityLabel("\(weekdayNames[index])，\(isSelected ? "已选中" : "未选中")")
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.green.opacity(0.28), lineWidth: 1)
+        }
+    }
+}
+
 struct MeterPanel: View {
     @ObservedObject var monitor: SubscriptionMonitor
 
@@ -790,18 +892,23 @@ struct MeterPanel: View {
             VStack(spacing: 12) {
                 MeterRing(
                     progress: monitor.snapshot.weeklyProgress,
-                    dailyCycleProgress: monitor.snapshot.dailyCycleProgress,
-                    dailyTotalProgress: monitor.snapshot.dailyAllocationProgress,
+                    dailyCycleProgress: monitor.snapshot.dailyCycleProgress(for: monitor.selectedWeekdays),
+                    dailyTotalProgress: monitor.snapshot.dailyAllocationProgress(for: monitor.selectedWeekdays),
                     mainText: PercentFormatter.whole(monitor.snapshot.usedPercent),
                     diameter: 164,
-                    dailyArcStartColor: monitor.snapshot.dailyPaceState.dailyArcStartColor,
-                    dailyArcEndColor: monitor.snapshot.dailyPaceState.dailyArcEndColor
+                    dailyArcStartColor: monitor.snapshot.dailyPaceState(for: monitor.selectedWeekdays).dailyArcStartColor,
+                    dailyArcEndColor: monitor.snapshot.dailyPaceState(for: monitor.selectedWeekdays).dailyArcEndColor
                 )
             }
 
+            WeekdayQuotaSelector(
+                selectedWeekdays: monitor.selectedWeekdays,
+                toggleWeekday: monitor.toggleWeekday
+            )
+
             UsageHeatmap(
                 entries: monitor.snapshot.recentUsage,
-                currentDailyPaceState: monitor.snapshot.dailyPaceState
+                currentDailyPaceState: monitor.snapshot.paceState(for: monitor.selectedWeekdays)
             )
 
             Divider()
