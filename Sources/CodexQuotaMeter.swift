@@ -48,8 +48,20 @@ struct SubscriptionSnapshot: Equatable, Sendable {
         return .purple
     }
 
-    // Today's actual increase in the 7-day quota, expressed against the
-    // selected schedule's equal daily allocation.
+    func todayQuotaRemaining(for selectedWeekdays: Set<Int>) -> Double? {
+        guard let dailyAllocationProgress = dailyAllocationProgress(for: selectedWeekdays) else { return nil }
+        let stageOffset: Double
+        switch paceState(for: selectedWeekdays) {
+        case .white: stageOffset = 0
+        case .red: stageOffset = 100
+        case .purple: stageOffset = 200
+        case .unavailable: return nil
+        }
+        let consumption = stageOffset + min(1, max(0, dailyAllocationProgress)) * 100
+        return 100 - consumption
+    }
+
+    // Today's actual increase expressed against the fixed daily allocation.
     func dailyAllocationProgress(for selectedWeekdays: Set<Int>) -> Double? {
         guard let allocation = allocation(for: selectedWeekdays), allocation.isTodaySelected,
               let todayQuotaUsedPercent else { return nil }
@@ -62,13 +74,19 @@ struct SubscriptionSnapshot: Equatable, Sendable {
         if dailyAllocationProgress <= 2 { return .red }
         return .purple
     }
-
-    // The daily overlay repeats inside its active 100% color band. For example,
-    // 120% of a daily allocation is shown as a 20% run in the red band.
+    // The daily overlay is based on today's actual increase and repeats inside
+    // its active 100% color band.
     func dailyCycleProgress(for selectedWeekdays: Set<Int>) -> Double? {
         guard let dailyAllocationProgress = dailyAllocationProgress(for: selectedWeekdays) else { return nil }
         let remainder = dailyAllocationProgress.truncatingRemainder(dividingBy: 1)
         return remainder == 0 && dailyAllocationProgress > 0 ? 1 : remainder
+    }
+
+    func isStaticPurpleArc(for selectedWeekdays: Set<Int>) -> Bool {
+        guard paceState(for: selectedWeekdays) == .purple,
+              let dailyAllocationProgress = dailyAllocationProgress(for: selectedWeekdays)
+        else { return false }
+        return dailyAllocationProgress >= 1
     }
 
     private static func mondayFirstWeekdayIndex(for date: Date, calendar: Calendar) -> Int {
@@ -150,7 +168,12 @@ enum PaceState: Equatable {
 
 @MainActor
 final class SubscriptionMonitor: ObservableObject {
-    @Published private(set) var snapshot = SubscriptionSnapshot(usedPercent: nil, resetsAt: nil, recentUsage: [], todayQuotaUsedPercent: nil)
+    @Published private(set) var snapshot = SubscriptionSnapshot(
+        usedPercent: nil,
+        resetsAt: nil,
+        recentUsage: [],
+        todayQuotaUsedPercent: nil,
+    )
     @Published private(set) var refreshedAt = Date.distantPast
     @Published private(set) var selectedWeekdays: Set<Int>
 
@@ -297,7 +320,12 @@ enum SubscriptionLimitReader {
                 return normalizedForReset(current)
             }
         }
-        return SubscriptionSnapshot(usedPercent: nil, resetsAt: nil, recentUsage: history.days, todayQuotaUsedPercent: history.todayQuotaUsedPercent)
+        return SubscriptionSnapshot(
+            usedPercent: nil,
+            resetsAt: nil,
+            recentUsage: history.days,
+            todayQuotaUsedPercent: history.todayQuotaUsedPercent
+        )
     }
 
     // The local event stream normally supplies a fresh used_percent after a
@@ -495,6 +523,7 @@ struct MeterRing: View {
     let diameter: CGFloat
     let dailyArcStartColor: Color
     let dailyArcEndColor: Color
+    let isStaticPurpleArc: Bool
 
     private var clampedProgress: Double { min(1, max(0, progress ?? 0)) }
     private let lineWidthRatio: CGFloat = 0.10
@@ -515,7 +544,8 @@ struct MeterRing: View {
                     diameter: diameter,
                     lineWidth: diameter * lineWidthRatio,
                     startColor: dailyArcStartColor,
-                    endColor: dailyArcEndColor
+                    endColor: dailyArcEndColor,
+                    isStaticPurple: isStaticPurpleArc
                 )
             }
             Text(mainText)
@@ -560,20 +590,35 @@ struct LoopingDailyArc: View {
     let lineWidth: CGFloat
     let startColor: Color
     let endColor: Color
+    let isStaticPurple: Bool
 
     @State private var startedAt = Date()
 
     var body: some View {
-        TimelineView(.animation) { timeline in
-            let elapsed = max(0, timeline.date.timeIntervalSince(startedAt))
-            let phase = (elapsed.truncatingRemainder(dividingBy: 1.45)) / 1.45
-            DailyGradientArc(
-                progress: CGFloat(min(1, max(0, targetProgress)) * phase),
-                diameter: diameter,
-                lineWidth: lineWidth,
-                startColor: startColor,
-                endColor: endColor
-            )
+        Group {
+            if isStaticPurple {
+                Circle()
+                    .stroke(Color(red: 0.42, green: 0.12, blue: 0.78), lineWidth: lineWidth)
+                    .rotationEffect(.degrees(-90))
+                    .shadow(color: Color(red: 0.42, green: 0.12, blue: 0.78).opacity(0.45), radius: lineWidth * 0.48)
+                    .frame(width: diameter, height: diameter)
+            } else {
+                TimelineView(.animation) { timeline in
+                    let elapsed = max(0, timeline.date.timeIntervalSince(startedAt))
+                    let animationDuration = 1.45
+                    let holdDuration = 0.5
+                    let cycleDuration = animationDuration + holdDuration
+                    let cycleElapsed = elapsed.truncatingRemainder(dividingBy: cycleDuration)
+                    let phase = min(1, cycleElapsed / animationDuration)
+                    DailyGradientArc(
+                        progress: CGFloat(min(1, max(0, targetProgress)) * phase),
+                        diameter: diameter,
+                        lineWidth: lineWidth,
+                        startColor: startColor,
+                        endColor: endColor
+                    )
+                }
+            }
         }
         .onChange(of: targetProgress) { _, _ in startedAt = Date() }
     }
@@ -584,6 +629,7 @@ struct MenuSingleRing: View {
     let dailyCycleProgress: Double?
     let dailyArcStartColor: Color
     let dailyArcEndColor: Color
+    let isStaticPurpleArc: Bool
     private let trackWidth: CGFloat = 3.0
 
     var body: some View {
@@ -600,7 +646,8 @@ struct MenuSingleRing: View {
                     diameter: 18,
                     lineWidth: trackWidth,
                     startColor: dailyArcStartColor,
-                    endColor: dailyArcEndColor
+                    endColor: dailyArcEndColor,
+                    isStaticPurple: isStaticPurpleArc
                 )
             }
         }
@@ -617,8 +664,9 @@ struct MenuBarLabel: View {
         MenuSingleRing(
             weeklyProgress: snapshot.weeklyProgress,
             dailyCycleProgress: snapshot.dailyCycleProgress(for: selectedWeekdays),
-            dailyArcStartColor: snapshot.dailyPaceState(for: selectedWeekdays).dailyArcStartColor,
-            dailyArcEndColor: snapshot.dailyPaceState(for: selectedWeekdays).dailyArcEndColor
+            dailyArcStartColor: snapshot.paceState(for: selectedWeekdays).dailyArcStartColor,
+            dailyArcEndColor: snapshot.paceState(for: selectedWeekdays).dailyArcEndColor,
+            isStaticPurpleArc: snapshot.isStaticPurpleArc(for: selectedWeekdays)
         )
         .accessibilityLabel("Codex 7天订阅额度与今日用量")
     }
@@ -885,6 +933,9 @@ struct MeterPanel: View {
             HStack {
                 Text("ChatGPT 订阅额度").font(.headline)
                 Spacer()
+                Text("今日额度剩余：\(PercentFormatter.whole(monitor.snapshot.todayQuotaRemaining(for: monitor.selectedWeekdays)))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Button(action: monitor.refresh) { Image(systemName: "arrow.clockwise") }
                     .buttonStyle(.plain).help("立即刷新")
             }
@@ -896,8 +947,9 @@ struct MeterPanel: View {
                     dailyTotalProgress: monitor.snapshot.dailyAllocationProgress(for: monitor.selectedWeekdays),
                     mainText: PercentFormatter.whole(monitor.snapshot.usedPercent),
                     diameter: 164,
-                    dailyArcStartColor: monitor.snapshot.dailyPaceState(for: monitor.selectedWeekdays).dailyArcStartColor,
-                    dailyArcEndColor: monitor.snapshot.dailyPaceState(for: monitor.selectedWeekdays).dailyArcEndColor
+                    dailyArcStartColor: monitor.snapshot.paceState(for: monitor.selectedWeekdays).dailyArcStartColor,
+                    dailyArcEndColor: monitor.snapshot.paceState(for: monitor.selectedWeekdays).dailyArcEndColor,
+                    isStaticPurpleArc: monitor.snapshot.isStaticPurpleArc(for: monitor.selectedWeekdays)
                 )
             }
 
