@@ -20,7 +20,7 @@ jobs:
 
       - run: npm install
 
-      - run: npm run dist:${{ matrix.os == 'windows-latest' && 'win' || 'mac' }}
+      - run: npm run dist:${{ matrix.os == 'windows-latest' && 'win' || 'mac' }} -- --publish never
 
       - uses: actions/upload-artifact@v4
         with:
