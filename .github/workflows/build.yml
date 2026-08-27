@@ -1,28 +1,45 @@
 name: Build desktop packages
 
-on: [push, workflow_dispatch]
+on:
+  push:
+  workflow_dispatch:
 
 jobs:
   package:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        include:
+          - os: macos-latest
+            script: mac
+            artifact_name: macos-latest-packages
+            artifact_path: dist/*.dmg
+
+          - os: windows-latest
+            script: win
+            artifact_name: windows-latest-packages
+            artifact_path: dist/*Setup*.exe
 
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      - run: npm install
+      - name: Install dependencies
+        run: npm install
 
-      - run: npm run dist:${{ matrix.os == 'windows-latest' && 'win' || 'mac' }} -- --publish never
+      - name: Build package
+        run: npm run dist:${{ matrix.script }} -- --publish never
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.os }}-packages
-          path: dist/*
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_path }}
+          if-no-files-found: error
