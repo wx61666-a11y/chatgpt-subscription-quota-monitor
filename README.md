@@ -1,145 +1,527 @@
-# ChatGPT 订阅额度监控
+# ChatGPT Subscription Quota Monitor V3
 
-> V3 将 macOS 与 Windows 统一为 Electron 桌面版：macOS 菜单栏和 Windows 任务栏通知区都显示双圆环，点击后打开完整监控面板。
-
-## 双平台版
-
-- **macOS**：菜单栏双圆环状态项；点击打开主面板。
-- **Windows 11**：任务栏右侧通知区双圆环；点击打开详情面板，正是第一种布局方案。
-- 读取当前用户的本机 `.codex/sessions` 与 `.codex/archived_sessions`，不上传会话内容。
-- 三套皮肤、90 天彩色用量图、周额度/5 小时额度/状态栏文字独立开关。
-
-### 开发与封装
-
-```bash
-npm install
-npm start
-npm run dist:mac  # macOS 安装包
-npm run dist:win  # Windows NSIS 与便携版
-```
-
-提交后 GitHub Actions 会分别在 macOS 与 Windows 构建安装包；Windows 安装包不需要从 Mac 交叉编译。
+> 一个面向 **macOS + Windows** 的本机 ChatGPT / Codex 订阅额度监控工具。
+> 实时读取本机 Codex 会话记录，显示 **周额度、5 小时额度、近 90 天本机用量**，所有数据均在本机处理。
 
 [English](#english) | 中文
 
-一个轻量的 macOS 菜单栏应用。它从**本机 Codex 会话记录**读取 7 天额度事件，显示当前 7 天已用比例、按你的工作日计划计算的每日额度节奏，以及近 90 天 token 用量热力图。
+---
 
-> 非官方项目，与 OpenAI 或 ChatGPT 没有隶属、认可或合作关系。
+## V3 双平台版
 
-## 界面预览
+V3 已将 macOS 与 Windows 统一为 Electron 桌面应用。
 
-![ChatGPT 订阅额度监控 V2：69% 7 天额度、周一至周六额度分配和 90 天热力图](docs/v2-dashboard.png)
+### macOS
 
-截图为 V2 的实际界面示例：当前 7 天额度为 69%，已选择周一至周六作为额度计划，因此每天分配 16.7%。下方热力图显示近 90 天的本机 Codex token 用量。
+* 菜单栏显示双圆环额度状态
+* 点击菜单栏图标打开完整监控面板
+* 支持 Apple Silicon Mac
+* 提供 DMG 安装包
 
-## V2 新功能：自定义额度分配
+### Windows
 
-V2 增加了 **额度分配** 面板。你可以点击周一至周日，选择自己通常使用 Codex 的工作日：
+* Windows 任务栏通知区显示双圆环
+* 点击通知区图标打开完整监控面板
+* 支持 Windows x64
+* 提供 Setup.exe 安装包
 
-- 默认选中**周一至周六**，即 6 天计划，每天为 7 天总额度的 **16.7%**。
-- 选中的日期以绿色显示，未选中的日期会变暗。
-- 每日额度自动计算为 `100% ÷ 已选天数`。例如选 5 天时，每天为 20%；选 7 天时，每天约为 14.3%。
-- 选择会保存在本机；下次打开应用时继续使用同一计划。
+---
 
-这项设置**不会改变你的 ChatGPT/Codex 实际额度**，只改变应用用来判断“今天是否用得过快”的个人节奏基线。
+## 主要功能
 
-## 如何阅读面板
+### 周额度监控
 
-### 1. 中央 7 天额度圆环
+显示当前 Codex 周期额度的已使用比例，并同步显示额度重置时间。
 
-中央的大号百分比和白色圆环来自本机 Codex 记录中的 7 天额度事件：
+如果本机 Codex 记录中没有可识别的额度事件，应用会显示 `—`，不会猜测或生成不存在的额度数据。
 
-- `69%` 表示当前 7 天额度窗口已使用 69%。
-- 白色圆环越完整，表示已用比例越高。
-- 如果没有找到符合条件的本机记录，应用显示 `—`，不会猜测或编造额度数值。
+### 5 小时额度监控
 
-### 2. 彩色今日用量叠加环
+独立显示当前 5 小时额度窗口：
 
-白色圆环上方的彩色弧线代表**今天增加的额度消耗**，并以“每天分配额度”为单位判断节奏。只有今天被包含在你的额度计划中时才会显示这条弧线。
+* 已使用比例
+* 剩余额度
+* 重置时间
 
-| 颜色 | 今日增加的额度消耗 |
-| --- | --- |
-| 绿色 | 不超过 1 份每日额度 |
-| 红色 | 超过 1 份，但不超过 2 份每日额度 |
-| 紫色 | 超过 2 份每日额度 |
+可以单独控制是否在状态栏 / 通知区显示。
 
-例如，使用默认 6 天计划时，每日一份是 16.7%。如果今天增加了约 20% 的 7 天额度，叠加环会进入红色区间。当天是未选工作日时，应用不会把它标记为超额。
+### 双圆环状态栏
 
-### 3. 额度分配面板
+macOS 菜单栏和 Windows 通知区统一采用双圆环显示：
 
-面板会显示“已选 X 天 · 每天 Y%”，让你随时确认当前计划。点击星期按钮立即切换；新计划会同时用于：
+* 周额度
+* 5 小时额度
 
-- 菜单栏小圆环的今日节奏颜色；
-- 主圆环上的彩色今日用量叠加环；
-- 90 天用量区域的当前节奏提示色。
+无需打开主界面即可快速查看当前额度状态。
 
-### 4. 近 90 天用量热力图
+### 近 90 天本机用量
 
-下半部分按周排列、按星期显示最近 90 天的本机 Codex 记录：
+应用会读取本机 Codex 会话记录并生成近 90 天用量视图。
 
-- **灰色格子**：该日没有找到本机记录。
-- **绿色、红色、紫色格子**：该日有记录；颜色表示相对额度节奏，亮度表示提取到的 token 用量规模。
-- 悬停单个格子可以查看日期和该日 token 数；不悬停时，底部显示近 90 天累计 token 数。
+用于查看：
 
-## 刷新与使用方式
+* 每日 Codex 使用情况
+* 长期使用趋势
+* 活跃日期
+* Token 使用规模
 
-- 应用启动时立即读取本机记录，之后每 30 秒自动刷新一次。
-- 点击标题右上角的刷新图标可立即重新读取。
-- 应用会在菜单栏显示一个小圆环；点击它可快速打开监控面板。
-- 面板底部的“退出”会关闭应用。
+所有统计均来自当前电脑中的本机 Codex 数据。
 
-## 数据来源、隐私与限制
+### 三套界面皮肤
 
-应用只读取当前用户电脑中的以下目录：
+V3 内置三套视觉主题：
 
-- `~/.codex/sessions`
-- `~/.codex/archived_sessions`
+* 极光棱镜
+* 落日玻璃
+* 蛋白石光谱
 
-它仅提取展示与计算所需的额度百分比、额度重置时间、事件时间和 `last_token_usage.total_tokens` 字段。应用不会修改这些文件，不需要 API Key，不登录 ChatGPT 网页，不发起网络请求，也不会上传或额外保存会话内容。
+可以在应用面板中随时切换。
 
-这是一个**本机 Codex 记录查看器**，不是 ChatGPT 全平台账单或所有模型用量统计器。若历史记录中没有 7 天额度事件、记录格式改变，或刚开始使用 Codex，应用会显示空状态；这不代表你的实际额度为零。
+### 状态栏显示开关
 
-## 系统要求
+可以分别控制：
 
-- macOS 14 或更高版本
-- Apple Silicon Mac（默认构建为 arm64）
-- Xcode Command Line Tools（包含 `swiftc`、`iconutil` 和 `codesign`）
+* 周额度
+* 5 小时额度
+* 状态文字
 
-安装命令行工具：
+配置保存在本机。
 
-```zsh
-xcode-select --install
+---
+
+## 数据来源
+
+应用仅读取当前用户电脑中的 Codex 本机记录：
+
+```text
+~/.codex/sessions
+~/.codex/archived_sessions
 ```
 
-## 构建与运行
+Windows 下对应当前用户目录中的：
 
-```zsh
+```text
+%USERPROFILE%\.codex\sessions
+%USERPROFILE%\.codex\archived_sessions
+```
+
+应用会从本机 JSONL 记录中提取与显示有关的信息，例如：
+
+* 额度使用比例
+* 额度窗口长度
+* 额度重置时间
+* 事件时间
+* Token 使用数据
+
+---
+
+## 隐私
+
+本项目采用 **On-device 本机数据模型**。
+
+应用：
+
+* 不需要 OpenAI API Key
+* 不需要登录 ChatGPT 网页
+* 不读取浏览器 Cookie
+* 不修改 Codex 会话文件
+* 不上传 Codex 会话内容
+* 不上传 Prompt
+* 不上传聊天记录
+* 不将本机统计发送到服务器
+
+所有额度解析与 90 天用量统计均在当前电脑本地完成。
+
+---
+
+## 下载
+
+推荐始终下载安装最新版：
+
+https://github.com/wx61666-a11y/chatgpt-subscription-quota-monitor/releases/latest
+
+### Windows
+
+下载：
+
+```text
+ChatGPT Subscription Quota Monitor Setup x.x.x.exe
+```
+
+运行安装程序即可。
+
+### macOS
+
+下载：
+
+```text
+ChatGPT Subscription Quota Monitor-x.x.x-arm64.dmg
+```
+
+打开 DMG 后安装应用。
+
+---
+
+## 使用 Codex 自动安装
+
+如果电脑已经安装 Codex，可以直接把下面的地址交给 Codex：
+
+```text
+https://github.com/wx61666-a11y/chatgpt-subscription-quota-monitor/releases/latest
+```
+
+然后告诉 Codex：
+
+```text
+请帮我安装这个 GitHub Release 中最新版本的
+ChatGPT Subscription Quota Monitor：
+
+https://github.com/wx61666-a11y/chatgpt-subscription-quota-monitor/releases/latest
+
+请自动判断当前电脑是 Windows 还是 macOS，
+下载对应安装包并完成安装。
+
+Windows 使用 Setup.exe。
+macOS 使用 DMG。
+
+不要修改项目源码。
+如果系统因为应用未签名而阻止启动，
+请告诉我需要执行的系统确认操作。
+
+安装完成后启动应用并检查是否正常运行。
+```
+
+---
+
+## 从源码运行
+
+需要：
+
+* Node.js
+* npm
+
+克隆项目：
+
+```bash
 git clone https://github.com/wx61666-a11y/chatgpt-subscription-quota-monitor.git
 cd chatgpt-subscription-quota-monitor
-./scripts/build.sh
-open 'build/ChatGPT 订阅额度监控 V2.app'
 ```
 
-构建产物使用 ad-hoc 签名。若 macOS 在首次运行时拦截它，请在“系统设置 → 隐私与安全性”中选择允许打开。
+安装依赖：
 
-## 许可证
+```bash
+npm install
+```
 
-本项目基于 [MIT License](LICENSE) 发布。
+启动开发版：
 
-## English
+```bash
+npm start
+```
 
-ChatGPT Subscription Quota Monitor V2 is a lightweight macOS menu-bar app that reads local Codex session records to show the current 7-day quota percentage, a user-configurable daily pacing baseline, and a 90-day token-usage heatmap.
+---
 
-### V2: configurable quota allocation
+## 本地构建
 
-Choose the weekdays on which you normally use Codex. V2 divides the 7-day quota evenly across those selected days, remembers the selection locally, and uses it only as a pacing baseline. It does not change the actual ChatGPT or Codex quota.
+### macOS
 
-- The central white ring shows the 7-day quota percentage from local rate-limit events.
-- The colored overlay shows today's increase relative to one selected-day allocation: green is within one allocation, red is between one and two, and purple is above two.
-- The 90-day heatmap uses gray for days without local records. Colored cells indicate local activity; color reflects pace and brightness reflects extracted token-use scale.
+```bash
+npm install
+npm run dist:mac
+```
 
-### Privacy and limitations
+生成：
 
-The app reads JSONL files from `~/.codex/sessions` and `~/.codex/archived_sessions` on-device. It extracts quota percentage, reset time, event time, and `last_token_usage.total_tokens` for display. It does not require an API key, sign in to the ChatGPT website, modify the source files, make network requests, upload data, or persist session content.
+```text
+dist/*.dmg
+```
 
-This is an unofficial project and is not affiliated with, endorsed by, or sponsored by OpenAI or ChatGPT.
+当前 GitHub Actions 默认构建 Apple Silicon macOS 版本。
+
+### Windows
+
+```bash
+npm install
+npm run dist:win
+```
+
+生成：
+
+```text
+dist/*Setup*.exe
+```
+
+当前默认生成 Windows x64 NSIS 安装程序。
+
+---
+
+## GitHub Actions
+
+仓库已经配置 GitHub Actions 双平台自动构建。
+
+每次代码推送后会分别启动：
+
+```text
+macOS runner
+└── Build DMG
+
+Windows runner
+└── Build Setup.exe
+```
+
+日常构建只保留最终安装文件：
+
+```text
+macOS
+└── .dmg
+
+Windows
+└── Setup.exe
+```
+
+不再上传：
+
+* macOS ZIP
+* Windows Portable
+* unpacked 临时目录
+* blockmap 等中间构建文件
+
+---
+
+## Release
+
+正式版本通过 GitHub Releases 发布。
+
+最新版固定地址：
+
+```text
+https://github.com/wx61666-a11y/chatgpt-subscription-quota-monitor/releases/latest
+```
+
+因此无论以后发布 V3.0.1、V3.1.0 或更高版本，都可以继续使用同一个地址获取最新版。
+
+---
+
+## 关于代码签名
+
+当前社区构建版本可能没有商业代码签名证书。
+
+因此首次运行时系统可能出现安全提示。
+
+### Windows
+
+Windows SmartScreen 可能提示未知发布者。
+
+确认文件来自本项目官方 GitHub Release 后，可以根据 Windows 提示继续运行。
+
+### macOS
+
+macOS Gatekeeper 可能阻止首次打开未签名应用。
+
+可以进入：
+
+```text
+系统设置
+→ 隐私与安全性
+```
+
+找到被阻止的应用并选择允许打开。
+
+正式公开分发时，可以进一步加入：
+
+* Apple Developer ID
+* macOS Notarization
+* Windows Code Signing Certificate
+
+---
+
+## 当前版本
+
+```text
+V3.0.0
+```
+
+V3 主要变化：
+
+* macOS + Windows 统一 Electron 源码
+* macOS 菜单栏双圆环
+* Windows 通知区双圆环
+* 点击状态图标打开完整面板
+* 周额度监控
+* 5 小时额度监控
+* 近 90 天本机用量
+* 三套 UI 皮肤
+* 状态栏显示开关
+* GitHub Actions 双平台自动构建
+* 本机隐私数据模型
+
+---
+
+## 项目定位
+
+这个项目是一个：
+
+**本机 Codex 使用记录查看器 + 额度监控桌面工具。**
+
+它不是：
+
+* OpenAI 官方客户端
+* ChatGPT 官方额度 API
+* OpenAI 账单系统
+* ChatGPT 全平台使用量统计器
+
+实际可显示的数据取决于当前电脑中已有的 Codex 本机记录。
+
+如果本机记录不存在、记录格式变化或者近期没有相关额度事件，部分数据可能显示为空。
+
+---
+
+## Disclaimer
+
+本项目为非官方开源项目。
+
+与 OpenAI、ChatGPT 或 Codex 没有隶属、授权、认可、合作或赞助关系。
+
+ChatGPT、OpenAI、Codex 等名称及相关商标归其各自权利人所有。
+
+---
+
+## License
+
+本项目基于 MIT License 发布。
+
+详见：
+
+```text
+LICENSE
+```
+
+---
+
+# English
+
+## ChatGPT Subscription Quota Monitor V3
+
+A cross-platform local ChatGPT / Codex subscription quota monitor for **macOS and Windows**.
+
+V3 provides:
+
+* Weekly quota monitoring
+* 5-hour quota monitoring
+* Dual-ring menu bar / system tray status
+* 90-day local Codex usage visualization
+* Three interface themes
+* Independent status display toggles
+* Local-only data processing
+* Automatic macOS and Windows builds via GitHub Actions
+
+---
+
+## Platforms
+
+### macOS
+
+* Menu bar dual-ring quota indicator
+* Click the menu bar item to open the full dashboard
+* Apple Silicon support
+* DMG installer
+
+### Windows
+
+* Dual-ring system tray indicator
+* Click the tray icon to open the full dashboard
+* Windows x64 support
+* Setup.exe installer
+
+---
+
+## Privacy
+
+The application only reads local Codex records from:
+
+```text
+~/.codex/sessions
+~/.codex/archived_sessions
+```
+
+On Windows:
+
+```text
+%USERPROFILE%\.codex\sessions
+%USERPROFILE%\.codex\archived_sessions
+```
+
+The application does not:
+
+* Require an OpenAI API key
+* Sign in to the ChatGPT website
+* Read browser cookies
+* Modify Codex session files
+* Upload prompts
+* Upload conversations
+* Upload Codex session content
+
+Quota parsing and usage statistics are processed locally on the device.
+
+---
+
+## Download
+
+Always download the latest release from:
+
+https://github.com/wx61666-a11y/chatgpt-subscription-quota-monitor/releases/latest
+
+### Windows
+
+Download the latest:
+
+```text
+ChatGPT Subscription Quota Monitor Setup x.x.x.exe
+```
+
+### macOS
+
+Download the latest:
+
+```text
+ChatGPT Subscription Quota Monitor-x.x.x-arm64.dmg
+```
+
+---
+
+## Build from source
+
+```bash
+git clone https://github.com/wx61666-a11y/chatgpt-subscription-quota-monitor.git
+cd chatgpt-subscription-quota-monitor
+npm install
+npm start
+```
+
+Build macOS DMG:
+
+```bash
+npm run dist:mac
+```
+
+Build Windows installer:
+
+```bash
+npm run dist:win
+```
+
+---
+
+## Disclaimer
+
+This is an unofficial open-source project.
+
+It is not affiliated with, endorsed by, sponsored by, or officially connected with OpenAI, ChatGPT, or Codex.
+
+All trademarks belong to their respective owners.
+
+---
+
+## License
+
+MIT License.
