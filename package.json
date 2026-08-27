@@ -5,16 +5,31 @@
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
-    "dist:mac": "electron-builder --mac dmg zip",
-    "dist:win": "electron-builder --win nsis portable",
-    "dist": "electron-builder --mac dmg zip --win nsis portable"
+    "dist:mac": "electron-builder --mac dmg",
+    "dist:win": "electron-builder --win nsis",
+    "dist": "electron-builder"
   },
   "build": {
     "appId": "local.chatgpt.subscription-quota-monitor",
     "productName": "ChatGPT Subscription Quota Monitor",
-    "files": ["electron/**/*", "package.json"],
-    "mac": { "category": "public.app-category.utilities", "target": ["dmg", "zip"] },
-    "win": { "target": ["nsis", "portable"] }
+    "files": [
+      "electron/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.utilities",
+      "target": [
+        "dmg"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    }
   },
-  "devDependencies": { "electron": "^37.2.0", "electron-builder": "^26.0.12" }
+  "devDependencies": {
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12"
+  }
 }
