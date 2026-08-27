@@ -1,3 +1,6 @@
+<img width="568" height="755" alt="iShot_2026-08-27_17 37 47" src="https://github.com/user-attachments/assets/01ddbb62-15cd-4970-acf0-8fc7ce6c239c" />
+<img width="566" height="732" alt="iShot_2026-08-27_17 42 51" src="https://github.com/user-attachments/assets/10b1f560-c365-48e0-af3c-3b8495ea85ff" />
+<img width="532" height="735" alt="iShot_2026-08-27_17 43 01" src="https://github.com/user-attachments/assets/468271ca-f309-4c74-b231-2acd52915f11" />
 # ChatGPT Subscription Quota Monitor V3
 
 > 一个面向 **macOS + Windows** 的本机 ChatGPT / Codex 订阅额度监控工具。
