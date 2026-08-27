@@ -1,4 +1,24 @@
-# ChatGPT 订阅额度监控 V2
+# ChatGPT 订阅额度监控
+
+> V3 将 macOS 与 Windows 统一为 Electron 桌面版：macOS 菜单栏和 Windows 任务栏通知区都显示双圆环，点击后打开完整监控面板。
+
+## 双平台版
+
+- **macOS**：菜单栏双圆环状态项；点击打开主面板。
+- **Windows 11**：任务栏右侧通知区双圆环；点击打开详情面板，正是第一种布局方案。
+- 读取当前用户的本机 `.codex/sessions` 与 `.codex/archived_sessions`，不上传会话内容。
+- 三套皮肤、90 天彩色用量图、周额度/5 小时额度/状态栏文字独立开关。
+
+### 开发与封装
+
+```bash
+npm install
+npm start
+npm run dist:mac  # macOS 安装包
+npm run dist:win  # Windows NSIS 与便携版
+```
+
+提交后 GitHub Actions 会分别在 macOS 与 Windows 构建安装包；Windows 安装包不需要从 Mac 交叉编译。
 
 [English](#english) | 中文
 
