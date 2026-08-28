@@ -1,8 +1,20 @@
 ## 界面预览
-<img src="docs/exec-a16ab5da-3a8b-4024-a6b1-85bad6da5753.png" width="100%" alt="界面预览 1">
-<img src="docs/exec-a4389df4-1aa7-4409-9346-b12929e5029b.png" width="100%" alt="界面预览 2">
-<img src="docs/exec-5d977a12-15be-4ab6-b823-a1a4a53f8590.png" width="100%" alt="界面预览 3">
 # ChatGPT Subscription Quota Monitor V3
+## 界面预览
+
+<table>
+  <tr>
+    <td width="33%" align="center">
+      <img src="docs/exec-a16ab5da-3a8b-4024-a6b1-85bad6da5753.png" width="100%" alt="界面预览 1">
+    </td>
+    <td width="33%" align="center">
+      <img src="docs/exec-a4389df4-1aa7-4409-9346-b12929e5029b.png" width="100%" alt="界面预览 2">
+    </td>
+    <td width="33%" align="center">
+      <img src="docs/exec-5d977a12-15be-4ab6-b823-a1a4a53f8590.png" width="100%" alt="界面预览 3">
+    </td>
+  </tr>
+</table>
 
 一个面向 macOS 的本机 ChatGPT / Codex 订阅额度监控工具。应用实时读取本机 Codex 会话记录，显示周额度、5 小时额度和近 90 天本机用量，所有数据均在本机处理。
 
