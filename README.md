@@ -1,3 +1,6 @@
+/Users/x/Downloads/竞品复刻/CodexQuotaMeterCrossPlatform/docs/v3-preview-01.png
+/Users/x/Downloads/竞品复刻/CodexQuotaMeterCrossPlatform/docs/v3-preview-02.png
+/Users/x/Downloads/竞品复刻/CodexQuotaMeterCrossPlatform/docs/v3-preview-03.png
 # ChatGPT Subscription Quota Monitor V3
 
 一个面向 macOS 的本机 ChatGPT / Codex 订阅额度监控工具。应用实时读取本机 Codex 会话记录，显示周额度、5 小时额度和近 90 天本机用量，所有数据均在本机处理。
