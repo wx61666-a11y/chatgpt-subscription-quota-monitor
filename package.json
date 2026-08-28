@@ -1,13 +1,12 @@
 {
   "name": "chatgpt-subscription-quota-monitor",
   "version": "3.0.0",
-  "description": "Cross-platform local ChatGPT subscription quota monitor",
+  "description": "Local macOS ChatGPT subscription quota monitor",
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
     "dist:mac": "electron-builder --mac dmg",
-    "dist:win": "electron-builder --win nsis",
-    "dist": "electron-builder"
+    "dist": "electron-builder --mac dmg"
   },
   "build": {
     "appId": "local.chatgpt.subscription-quota-monitor",
@@ -20,11 +19,6 @@
       "category": "public.app-category.utilities",
       "target": [
         "dmg"
-      ]
-    },
-    "win": {
-      "target": [
-        "nsis"
       ]
     }
   },

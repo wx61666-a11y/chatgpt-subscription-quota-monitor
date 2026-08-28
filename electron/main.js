@@ -6,7 +6,7 @@ let mainWindow, tray, animationTimer, settings = { skin: 'aurora', weekly: true,
 const animationCycle = 2_300, animationDraw = 1_800;
 
 function emptySnapshot() { return { weekly: null, fiveHour: null, heatmap: Array(90).fill(0), updatedAt: null }; }
-function homeCodex() { return path.join(process.env.HOME || process.env.USERPROFILE || '', '.codex'); }
+function homeCodex() { return path.join(process.env.HOME || '', '.codex'); }
 function filesIn(root) { try { return fs.readdirSync(root, { withFileTypes: true }).flatMap(e => e.isDirectory() ? filesIn(path.join(root, e.name)) : e.name.endsWith('.jsonl') ? [path.join(root, e.name)] : []); } catch { return []; } }
 function dateOf(value) { const d = new Date(value); return Number.isNaN(d.valueOf()) ? null : d; }
 function limitsFrom(object, timestamp, out) {
@@ -43,7 +43,7 @@ function trayImage() {
 }
 function statusText() { return [settings.weekly && `周 ${snapshot.weekly?.used?.toFixed(0) ?? '—'}%`, settings.fiveHour && `5小时 ${snapshot.fiveHour?.used?.toFixed(0) ?? '—'}%`].filter(Boolean).join(' · '); }
 function updateTrayImage() { if (tray) tray.setImage(trayImage()); }
-function updateTrayText() { if (!tray) return; const text = statusText(); if (process.platform === 'darwin' && typeof tray.setTitle === 'function') tray.setTitle(settings.text ? text : ''); tray.setToolTip(settings.text && text ? text : 'ChatGPT Subscription Quota Monitor'); }
+function updateTrayText() { if (!tray) return; const text = statusText(); if (typeof tray.setTitle === 'function') tray.setTitle(settings.text ? text : ''); tray.setToolTip(settings.text && text ? text : 'ChatGPT Subscription Quota Monitor'); }
 function updateTray() { updateTrayImage(); updateTrayText(); }
 function refresh() { snapshot = loadSnapshot(); updateTray(); mainWindow?.webContents.send('snapshot', snapshot); }
 function createWindow() { mainWindow = new BrowserWindow({ width: 920, height: 700, minWidth: 760, minHeight: 580, backgroundColor: '#111725', webPreferences: { preload: path.join(__dirname, 'preload.js') } }); mainWindow.on('close', event => { if (!app.isQuitting) { event.preventDefault(); mainWindow.hide(); } }); mainWindow.loadFile(path.join(__dirname, 'index.html')); }

@@ -9,21 +9,7 @@ permissions:
 
 jobs:
   package:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            script: mac
-            artifact_name: macos-latest-packages
-            artifact_path: dist/*.dmg
-
-          - os: windows-latest
-            script: win
-            artifact_name: windows-latest-packages
-            artifact_path: dist/*Setup*.exe
-
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-latest
 
     steps:
       - name: Checkout repository
@@ -38,13 +24,13 @@ jobs:
         run: npm install
 
       - name: Build package
-        run: npm run dist:${{ matrix.script }} -- --publish never
+        run: npm run dist:mac -- --publish never
 
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.artifact_path }}
+          name: macos-latest-packages
+          path: dist/*.dmg
           if-no-files-found: error
 
   release:
@@ -70,12 +56,6 @@ jobs:
           name: macos-latest-packages
           path: release/macos
 
-      - name: Download Windows installer
-        uses: actions/download-artifact@v4
-        with:
-          name: windows-latest-packages
-          path: release/windows
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -84,4 +64,3 @@ jobs:
           generate_release_notes: true
           files: |
             release/macos/*.dmg
-            release/windows/*Setup*.exe
