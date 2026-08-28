@@ -2,8 +2,8 @@ const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } = require('electr
 const fs = require('fs');
 const path = require('path');
 
-let mainWindow, tray, settings = { skin: 'aurora', weekly: true, fiveHour: true, text: true }, snapshot = emptySnapshot();
-const minute = 60_000;
+let mainWindow, tray, animationTimer, settings = { skin: 'aurora', weekly: true, fiveHour: true, text: true }, snapshot = emptySnapshot();
+const animationCycle = 2_300, animationDraw = 1_800;
 
 function emptySnapshot() { return { weekly: null, fiveHour: null, heatmap: Array(90).fill(0), updatedAt: null }; }
 function homeCodex() { return path.join(process.env.HOME || process.env.USERPROFILE || '', '.codex'); }
@@ -32,16 +32,22 @@ function loadSnapshot() {
   return { weekly: newest(10080), fiveHour: newest(300), heatmap, updatedAt: new Date().toISOString() };
 }
 function arc(cx, cy, r, percent) { const a = Math.max(0, Math.min(1, percent)) * 359.99, end = -90 + a, p = d => [cx + r*Math.cos(d*Math.PI/180), cy + r*Math.sin(d*Math.PI/180)]; const [x1,y1]=p(-90),[x2,y2]=p(end); return `M ${x1} ${y1} A ${r} ${r} 0 ${a>180?1:0} 1 ${x2} ${y2}`; }
+function visibleProgress(used) { const elapsed = Date.now() % animationCycle; return Math.max(0, Math.min(1, used)) * Math.min(1, elapsed / animationDraw); }
 function trayImage() {
   const colors = { aurora:['#16e7ff','#3077ff','#ba52ff','#ff52d1','#72ff8d'], sunset:['#ff4f56','#ff8b36','#ffe653','#ff3a9b','#a75cff'], opal:['#8af3ef','#91c9ff','#b3a8ff','#ffabd4','#ffe783'] }[settings.skin];
-  const rings = [['weekly', 17], ['fiveHour', 47]].filter(([key]) => settings[key]).map(([key,cx], i) => { const v = (snapshot[key]?.used || 0)/100; return `<circle cx="${cx}" cy="32" r="12" fill="none" stroke="white" stroke-width="4"/><path d="${arc(cx,32,12,v)}" fill="none" stroke="${colors[i*2]||colors[0]}" stroke-width="4" stroke-linecap="round"/>`; }).join('');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">${rings || '<circle cx="32" cy="32" r="12" fill="none" stroke="white" stroke-width="4"/>'}</svg>`;
+  const phase = (Date.now() % animationCycle) / animationCycle;
+  const stops = colors.map((color, index) => `<stop offset="${index / (colors.length - 1)}" stop-color="${color}"/>`).join('');
+  const rings = [['weekly', 17], ['fiveHour', 47]].filter(([key]) => settings[key]).map(([key,cx]) => { const used = (snapshot[key]?.used || 0)/100; const v = visibleProgress(used); return `<circle cx="${cx}" cy="32" r="12" fill="none" stroke="white" stroke-width="4"/><path d="${arc(cx,32,12,v)}" fill="none" stroke="url(#rainbow)" filter="url(#glow)" stroke-width="4" stroke-linecap="round"/>`; }).join('');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><defs><linearGradient id="rainbow" x1="0" y1="0" x2="64" y2="64" gradientTransform="rotate(${360 * phase} 32 32)">${stops}</linearGradient><filter id="glow"><feGaussianBlur stdDeviation="1.4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>${rings || '<circle cx="32" cy="32" r="12" fill="none" stroke="white" stroke-width="4"/>'}</svg>`;
   return nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`);
 }
-function updateTray() { if (!tray) return; tray.setImage(trayImage()); const text = [settings.weekly && `周 ${snapshot.weekly?.used?.toFixed(0) ?? '—'}%`, settings.fiveHour && `5小时 ${snapshot.fiveHour?.used?.toFixed(0) ?? '—'}%`].filter(Boolean).join(' · '); tray.setToolTip(text || 'ChatGPT Subscription Quota Monitor'); }
+function statusText() { return [settings.weekly && `周 ${snapshot.weekly?.used?.toFixed(0) ?? '—'}%`, settings.fiveHour && `5小时 ${snapshot.fiveHour?.used?.toFixed(0) ?? '—'}%`].filter(Boolean).join(' · '); }
+function updateTrayImage() { if (tray) tray.setImage(trayImage()); }
+function updateTrayText() { if (!tray) return; const text = statusText(); if (process.platform === 'darwin' && typeof tray.setTitle === 'function') tray.setTitle(settings.text ? text : ''); tray.setToolTip(settings.text && text ? text : 'ChatGPT Subscription Quota Monitor'); }
+function updateTray() { updateTrayImage(); updateTrayText(); }
 function refresh() { snapshot = loadSnapshot(); updateTray(); mainWindow?.webContents.send('snapshot', snapshot); }
 function createWindow() { mainWindow = new BrowserWindow({ width: 920, height: 700, minWidth: 760, minHeight: 580, backgroundColor: '#111725', webPreferences: { preload: path.join(__dirname, 'preload.js') } }); mainWindow.on('close', event => { if (!app.isQuitting) { event.preventDefault(); mainWindow.hide(); } }); mainWindow.loadFile(path.join(__dirname, 'index.html')); }
-app.whenReady().then(() => { createWindow(); tray = new Tray(trayImage()); tray.on('click', () => { mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show(); }); tray.setContextMenu(Menu.buildFromTemplate([{ label:'打开监控面板', click:()=>mainWindow.show() }, { type:'separator' }, { label:'退出', click:()=>app.quit() }])); refresh(); setInterval(refresh, 30_000); setInterval(updateTray, minute); });
+app.whenReady().then(() => { createWindow(); tray = new Tray(trayImage()); tray.on('click', () => { mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show(); }); tray.setContextMenu(Menu.buildFromTemplate([{ label:'打开监控面板', click:()=>mainWindow.show() }, { type:'separator' }, { label:'退出', click:()=>app.quit() }])); refresh(); animationTimer = setInterval(updateTrayImage, 1000 / 30); setInterval(refresh, 30_000); });
 ipcMain.handle('snapshot', () => snapshot);
 ipcMain.on('refresh', refresh);
 ipcMain.on('settings', (_, next) => { settings = { ...settings, ...next }; updateTray(); });
