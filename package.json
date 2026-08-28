@@ -1,6 +1,6 @@
 {
   "name": "chatgpt-subscription-quota-monitor",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Local macOS ChatGPT subscription quota monitor",
   "main": "electron/main.js",
   "scripts": {
